@@ -1,0 +1,4 @@
+
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineEndpoint.schema.json
+name: juke-final-ep-2026
+auth_mode: key

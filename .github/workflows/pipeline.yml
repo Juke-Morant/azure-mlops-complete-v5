@@ -1,0 +1,53 @@
+
+name: Final-Fixed-Pipeline-V2
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  full-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Install Azure ML CLI
+        run: az extension add -n ml
+
+      # 1. 训练
+      - name: Submit Training Job
+        run: az ml job create --file src/job.yml --resource-group FirstResource --workspace-name AzureML
+
+      # 2. 注册 (自动版本)
+      - name: Register Model
+        run: |
+          echo "Dummy model content" > model.pkl
+          az ml model create --name mlops-demo-model --path model.pkl --resource-group FirstResource --workspace-name AzureML
+
+      # 3. 创建 Endpoint
+      - name: Create Endpoint
+        run: |
+          az ml online-endpoint create --file endpoint/endpoint.yml --resource-group FirstResource --workspace-name AzureML || echo "Endpoint 已存在"
+
+      # 4. 创建 Deployment (⚠️ 这一步去掉了 --all-traffic)
+      - name: Create Deployment
+        run: |
+          echo "🚀 开始部署虚拟机 (预计 10 分钟)..."
+          az ml online-deployment create --file endpoint/deployment.yml --resource-group FirstResource --workspace-name AzureML
+
+      # 5. 分配流量 (⚠️ 这是新增的单独一步)
+      - name: Allocate Traffic
+        run: |
+          echo "🔀 正在将 100% 流量切换到 blue..."
+          az ml online-endpoint update --name juke-final-ep-2026 --traffic "blue=100" --resource-group FirstResource --workspace-name AzureML
